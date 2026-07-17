@@ -5,117 +5,82 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.svm import SVC
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.pipeline import Pipeline
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import OneHotEncoder
 import joblib
 import warnings
 warnings.filterwarnings('ignore')
 
-# ==============================
-# 1. โหลดข้อมูล
-# ==============================
-print("=" * 50)
-print("📂 Loading data...")
-df = pd.read_csv('loan_data.csv')
-print(f"Shape: {df.shape}")
-print(f"Columns: {list(df.columns)}")
-print(df.head())
+print("=" * 60)
+print("🚀 เริ่มต้นการเทรนโมเดล SVM")
+print("=" * 60)
 
-# ==============================
-# 2. สำรวจข้อมูลเบื้องต้น
-# ==============================
-print("\n" + "=" * 50)
-print("🔍 Data Info:")
-print(df.info())
-print("\n📊 Missing values:")
-print(df.isnull().sum())
-print("\n📈 Target distribution:")
+# 1. โหลดข้อมูล
+print("\n📂 กำลังโหลดข้อมูล...")
+df = pd.read_csv('loan_data.csv')
+print(f"✅ โหลดข้อมูลสำเร็จ: {df.shape[0]} แถว, {df.shape[1]} คอลัมน์")
+
+# 2. กำหนดชื่อคอลัมน์
+df.columns = ['age', 'gender', 'education', 'income', 'num_children', 
+              'home_ownership', 'loan_amount', 'loan_purpose', 'interest_rate', 
+              'loan_to_income', 'loan_term', 'credit_score', 'approved']
+
+print(f"\n📊 ข้อมูล Target:")
 print(df['approved'].value_counts())
 
-# ==============================
-# 3. Preprocessing
-# ==============================
-print("\n" + "=" * 50)
-print("🔧 Preprocessing...")
-
-# แยก features และ target
+# 3. แยก Features และ Target
 X = df.drop('approved', axis=1)
-y = df['approved'].map({'Yes': 1, 'No': 0})  # แปลงเป็น 0/1
+y = df['approved'].map({'Yes': 1, 'No': 0})
 
-# แยก categorical และ numerical features
+# 4. ระบุคอลัมน์
 categorical_cols = ['gender', 'education', 'home_ownership', 'loan_purpose']
 numerical_cols = ['age', 'income', 'num_children', 'loan_amount', 
-                  'interest_rate', 'credit_score', 'loan_term', 'credit_limit']
+                  'interest_rate', 'loan_to_income', 'loan_term', 'credit_score']
 
-# ตรวจสอบ missing values และเติมค่า
-for col in numerical_cols:
-    if X[col].isnull().sum() > 0:
-        X[col] = X[col].fillna(X[col].median())
-
-for col in categorical_cols:
-    if X[col].isnull().sum() > 0:
-        X[col] = X[col].fillna(X[col].mode()[0])
-
-# ==============================
-# 4. Split Data
-# ==============================
-print("\n" + "=" * 50)
-print("🔀 Splitting data (80% train, 20% test)...")
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
-print(f"Train size: {X_train.shape[0]}, Test size: {X_test.shape[0]}")
-
-# ==============================
-# 5. สร้าง Pipeline (Preprocessing + SVM)
-# ==============================
-print("\n" + "=" * 50)
-print("🏗️  Building SVM Pipeline...")
-
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder
-
-# Preprocessor: OneHotEncode categorical + Scale numerical
+# 5. สร้าง Preprocessor
+print("\n กำลังสร้าง Preprocessor...")
 preprocessor = ColumnTransformer(
     transformers=[
         ('num', StandardScaler(), numerical_cols),
-        ('cat', OneHotEncoder(handle_unknown='ignore'), categorical_cols)
+        ('cat', OneHotEncoder(handle_unknown='ignore', sparse_output=False), categorical_cols)
     ])
 
-# SVM Pipeline
+# 6. สร้าง Pipeline
+print("🏗️  กำลังสร้าง SVM Pipeline...")
 svm_pipeline = Pipeline(steps=[
     ('preprocessor', preprocessor),
     ('classifier', SVC(kernel='rbf', C=1.0, probability=True, random_state=42))
 ])
 
-# ==============================
-# 6. Train Model
-# ==============================
-print("\n" + "=" * 50)
-print("🚀 Training SVM model...")
-svm_pipeline.fit(X_train, y_train)
-print("✅ Training completed!")
+# 7. Split Data
+print("\n แบ่งข้อมูล Train/Test (80/20)...")
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+print(f"   Train: {X_train.shape[0]} samples")
+print(f"   Test: {X_test.shape[0]} samples")
 
-# ==============================
-# 7. Evaluate Model
-# ==============================
-print("\n" + "=" * 50)
-print("📊 Model Evaluation:")
+# 8. Train Model
+print("\n🚀 กำลังเทรนโมเดล...")
+svm_pipeline.fit(X_train, y_train)
+print("✅ เทรนโมเดลสำเร็จ!")
+
+# 9. Evaluate
+print("\n ประเมินผลโมเดล...")
 y_pred = svm_pipeline.predict(X_test)
 y_prob = svm_pipeline.predict_proba(X_test)[:, 1]
 
-print(f"\nAccuracy: {accuracy_score(y_test, y_pred):.4f}")
-print("\nConfusion Matrix:")
-print(confusion_matrix(y_test, y_pred))
-print("\nClassification Report:")
-print(classification_report(y_test, y_pred, target_names=['Not Approved', 'Approved']))
+print(f"\n   Accuracy: {accuracy_score(y_test, y_pred):.4f}")
+print(f"\n   Confusion Matrix:")
+print(f"   {confusion_matrix(y_test, y_pred)}")
+print(f"\n   Classification Report:")
+print(f"   {classification_report(y_test, y_pred, target_names=['Not Approved', 'Approved'])}")
 
-# ==============================
-# 8. Save Model และ Preprocessor
-# ==============================
-print("\n" + "=" * 50)
-print("💾 Saving model...")
+# 10. บันทึกโมเดล
+print("\n💾 กำลังบันทึกโมเดล...")
 joblib.dump(svm_pipeline, 'svm_loan_model.pkl')
 
-# บันทึก column names สำหรับใช้ใน Streamlit
+# บันทึกข้อมูล categories สำหรับใช้ใน app
 model_info = {
     'numerical_cols': numerical_cols,
     'categorical_cols': categorical_cols,
@@ -127,6 +92,10 @@ model_info = {
     }
 }
 joblib.dump(model_info, 'model_info.pkl')
-print("✅ Model saved as 'svm_loan_model.pkl'")
-print("✅ Model info saved as 'model_info.pkl'")
-print("\n🎉 Done! Ready for Streamlit deployment.")
+
+print("✅ บันทึกไฟล์สำเร็จ:")
+print("   - svm_loan_model.pkl")
+print("   - model_info.pkl")
+print("\n" + "=" * 60)
+print(" เสร็จสิ้น! พร้อมใช้งานแล้ว")
+print("=" * 60)
